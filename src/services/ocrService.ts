@@ -66,7 +66,7 @@ function fileToBase64(file: File): Promise<string> {
  * Check if a file is a supported image format for OCR
  */
 export function isSupportedFormat(file: File): boolean {
-  const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp'];
+  const supportedTypes = ['image/jpeg', 'image/png', 'image/webp'];
   return supportedTypes.includes(file.type);
 }
 
