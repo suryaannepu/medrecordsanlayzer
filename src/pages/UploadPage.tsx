@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -9,12 +9,15 @@ import {
   Check, 
   Loader2, 
   Calendar,
-  ChevronDown,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Image,
+  FileJson,
+  ChevronRight
 } from 'lucide-react';
 import { useMedical, MedicalRecord } from '@/context/MedicalContext';
 import { performOCR, isSupportedFormat } from '@/services/ocrService';
+import { extractMedicalData, ExtractedMedicalData } from '@/services/medicalExtractionService';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -27,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const documentTypes = [
   { value: 'blood-report', label: 'Blood Report', icon: '🩸' },
@@ -43,7 +47,19 @@ interface ProcessedFile {
   isProcessing: boolean;
   progress: number;
   error?: string;
+  imageDataUrl?: string; // Store image as data URL
+  extractedData?: ExtractedMedicalData; // Structured extraction
 }
+
+// Helper to convert file to data URL
+const fileToDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 export function UploadPage() {
   const { addRecord, isProcessingOCR, setIsProcessingOCR, ocrProgress, setOcrProgress } = useMedical();
@@ -66,15 +82,21 @@ export function UploadPage() {
 
     if (validFiles.length === 0) return;
 
-    // Add files to processing queue
-    const newFiles: ProcessedFile[] = validFiles.map(file => ({
-      file,
-      text: '',
-      documentType: 'blood-report' as const,
-      date: new Date().toISOString().split('T')[0],
-      isProcessing: true,
-      progress: 0,
-    }));
+    // Add files to processing queue with image data URLs
+    const newFilesPromises = validFiles.map(async (file) => {
+      const imageDataUrl = await fileToDataUrl(file);
+      return {
+        file,
+        text: '',
+        documentType: 'blood-report' as const,
+        date: new Date().toISOString().split('T')[0],
+        isProcessing: true,
+        progress: 0,
+        imageDataUrl,
+      };
+    });
+
+    const newFiles = await Promise.all(newFilesPromises);
 
     setProcessedFiles(prev => [...prev, ...newFiles]);
     setActiveFileIndex(processedFiles.length);
@@ -96,10 +118,31 @@ export function UploadPage() {
           );
         });
 
+        // Run medical extraction on OCR text
+        const extractedData = extractMedicalData(result.text);
+        
+        // Auto-detect document type from extraction
+        const detectedType = extractedData.document_type === 'Blood Report' ? 'blood-report' 
+          : extractedData.document_type === 'Prescription' ? 'prescription'
+          : extractedData.document_type === 'Scan' ? 'scan'
+          : extractedData.document_type === 'Receipt' ? 'receipt'
+          : 'blood-report';
+
+        // Auto-detect date if found
+        const detectedDate = extractedData.report_date || new Date().toISOString().split('T')[0];
+
         setProcessedFiles(prev =>
           prev.map((pf, idx) =>
             idx === fileIndex
-              ? { ...pf, text: result.text, isProcessing: false, progress: 100 }
+              ? { 
+                  ...pf, 
+                  text: extractedData.corrected_text, // Use corrected text
+                  isProcessing: false, 
+                  progress: 100,
+                  extractedData,
+                  documentType: detectedType,
+                  date: detectedDate,
+                }
               : pf
           )
         );
@@ -165,6 +208,8 @@ export function UploadPage() {
       documentType: file.documentType,
       date: file.date,
       fileName: file.file.name,
+      imageDataUrl: file.imageDataUrl,
+      extractedData: file.extractedData,
     });
 
     // Remove from processing list
@@ -314,14 +359,31 @@ export function UploadPage() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="medical-card p-5 space-y-4"
+                      className="medical-card p-5 space-y-4 lg:col-span-1"
                     >
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold text-foreground flex items-center gap-2">
                           <Sparkles className="h-4 w-4 text-primary" />
-                          Edit Extracted Text
+                          Medical Data Extraction
                         </h3>
                       </div>
+
+                      {/* Image Proof Display */}
+                      {activeFile.imageDataUrl && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium flex items-center gap-1.5">
+                            <Image className="h-3.5 w-3.5" />
+                            Document Image (Proof)
+                          </Label>
+                          <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
+                            <img 
+                              src={activeFile.imageDataUrl} 
+                              alt="Uploaded medical document"
+                              className="w-full h-auto max-h-48 object-contain"
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Document Type */}
                       <div className="space-y-2">
@@ -363,15 +425,55 @@ export function UploadPage() {
                         />
                       </div>
 
-                      {/* Extracted Text */}
+                      {/* Structured Medical Data */}
+                      {activeFile.extractedData && activeFile.extractedData.extracted_facts.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium flex items-center gap-1.5">
+                            <FileJson className="h-3.5 w-3.5" />
+                            Extracted Medical Facts
+                          </Label>
+                          <ScrollArea className="h-40 rounded-lg border border-border bg-muted/20 p-3">
+                            <div className="space-y-2">
+                              {activeFile.extractedData.extracted_facts.map((fact, idx) => (
+                                <div 
+                                  key={idx}
+                                  className="flex items-start gap-2 text-sm p-2 rounded-md bg-background/50"
+                                >
+                                  <ChevronRight className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-medium text-foreground">{fact.name}</span>
+                                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                        fact.confidence === 'high' ? 'bg-success/20 text-success' :
+                                        fact.confidence === 'medium' ? 'bg-warning/20 text-warning' :
+                                        'bg-muted text-muted-foreground'
+                                      }`}>
+                                        {fact.confidence}
+                                      </span>
+                                    </div>
+                                    <p className="text-foreground/80">
+                                      {fact.value} {fact.unit}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {fact.interpretation_reason}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      )}
+
+                      {/* Corrected OCR Text */}
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Extracted Text (Editable)</Label>
+                        <Label className="text-sm font-medium">Corrected Text (Editable)</Label>
                         <Textarea
                           value={activeFile.text}
                           onChange={(e) =>
                             updateFile(activeFileIndex!, { text: e.target.value })
                           }
-                          rows={8}
+                          rows={6}
                           className="font-mono text-sm resize-none"
                           placeholder="OCR extracted text will appear here..."
                         />

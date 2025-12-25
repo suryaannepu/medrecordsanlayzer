@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { ExtractedMedicalData } from '@/services/medicalExtractionService';
 
 // Types for medical records
 export interface MedicalRecord {
@@ -8,6 +9,8 @@ export interface MedicalRecord {
   date: string;
   fileName: string;
   uploadedAt: Date;
+  imageDataUrl?: string; // Store image as data URL for proof display
+  extractedData?: ExtractedMedicalData; // Structured medical data
 }
 
 export interface ChatMessage {
