@@ -10,13 +10,21 @@ import {
   Sparkles,
   AlertTriangle,
   Trash2,
-  MessageSquare
+  MessageSquare,
+  Image
 } from 'lucide-react';
 import { useMedical } from '@/context/MedicalContext';
 import { queryMedicalBot } from '@/services/llmService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 export function ChatPage() {
   const { 
@@ -229,7 +237,7 @@ export function ChatPage() {
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
 
-                  {/* Evidence Section */}
+                  {/* Evidence Section with Image Proof */}
                   {message.evidence && message.evidence.length > 0 && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
@@ -241,21 +249,59 @@ export function ChatPage() {
                         Source Evidence
                       </p>
                       <div className="space-y-1.5">
-                        {message.evidence.map((ev, evIndex) => (
-                          <div
-                            key={evIndex}
-                            className="p-2.5 rounded-md bg-muted/50 border border-border/50 text-xs"
-                          >
-                            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                              <span className="font-medium">{ev.documentType}</span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {ev.date}
-                              </span>
+                        {message.evidence.map((ev, evIndex) => {
+                          // Find matching record to get image
+                          const matchingRecord = records.find(
+                            r => r.date === ev.date && 
+                            (r.documentType.replace('-', ' ').toLowerCase().includes(ev.documentType.toLowerCase().replace(' report', '').replace('/', '')) ||
+                             ev.documentType.toLowerCase().includes(r.documentType.replace('-', ' ').toLowerCase()))
+                          );
+                          
+                          return (
+                            <div
+                              key={evIndex}
+                              className="p-2.5 rounded-md bg-muted/50 border border-border/50 text-xs"
+                            >
+                              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                                <span className="font-medium">{ev.documentType}</span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {ev.date}
+                                </span>
+                                {/* Show image proof button if available */}
+                                {matchingRecord?.imageDataUrl && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <button className="flex items-center gap-1 text-primary hover:text-primary/80 transition-colors ml-auto">
+                                        <Image className="h-3 w-3" />
+                                        <span>View Proof</span>
+                                      </button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-2xl">
+                                      <DialogHeader>
+                                        <DialogTitle className="flex items-center gap-2">
+                                          <Image className="h-4 w-4" />
+                                          Document Image - {ev.documentType}
+                                        </DialogTitle>
+                                      </DialogHeader>
+                                      <div className="mt-4">
+                                        <img 
+                                          src={matchingRecord.imageDataUrl} 
+                                          alt={`Medical document - ${ev.documentType}`}
+                                          className="w-full h-auto rounded-lg border border-border"
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-2 text-center">
+                                          {matchingRecord.fileName} • {ev.date}
+                                        </p>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
+                              <p className="text-foreground/80 italic">"{ev.snippet}"</p>
                             </div>
-                            <p className="text-foreground/80 italic">"{ev.snippet}"</p>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </motion.div>
                   )}
