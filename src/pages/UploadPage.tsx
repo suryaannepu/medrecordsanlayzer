@@ -134,6 +134,7 @@ export function UploadPage() {
     accept: {
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
+      'image/webp': ['.webp'],
     },
     multiple: true,
     noDrag: false,
@@ -220,7 +221,7 @@ export function UploadPage() {
                 {isDragActive ? 'Drop your files here' : 'Drag & drop medical documents'}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                or click to browse • Supports JPG, PNG
+                or click to browse • Supports JPG, PNG, WebP
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
