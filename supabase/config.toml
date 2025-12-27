@@ -1,1 +1,13 @@
 project_id = "ibojsthvejcyrvlmaymv"
+
+[functions.analyze-medical]
+verify_jwt = true
+
+[functions.extract-medical]
+verify_jwt = true
+
+[functions.assess-risk]
+verify_jwt = true
+
+[functions.suggest-prescription]
+verify_jwt = true
