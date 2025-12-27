@@ -129,15 +129,15 @@ export function StudentRecords() {
         // 5. Save to database
         const { error: dbError } = await supabase
           .from('medical_reports')
-          .insert([{
+          .insert({
             student_id: user.id,
             file_url: publicUrl,
             file_name: file.name,
             document_type: extractedData.document_type,
-            extracted_data: extractedData as unknown as Record<string, unknown>,
+            extracted_data: JSON.parse(JSON.stringify(extractedData)),
             ocr_text: ocrResult.text,
             report_date: extractedData.report_date,
-          }]);
+          });
 
         if (dbError) throw dbError;
 
